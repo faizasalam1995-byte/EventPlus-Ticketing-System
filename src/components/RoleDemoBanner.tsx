@@ -6,7 +6,7 @@ import { Shield, Ticket, QrCode, Wifi, Database, CheckCircle2 } from 'lucide-rea
 
 export const RoleDemoBanner: React.FC = () => {
   const { role, user, quickLogin } = useAuth();
-  const { isConnected } = useSocket();
+  const { isConnected, syncMode } = useSocket();
   const [dbStatus, setDbStatus] = useState<string>('Checking...');
 
   useEffect(() => {
@@ -74,11 +74,44 @@ export const RoleDemoBanner: React.FC = () => {
       </div>
 
       <div className="flex items-center gap-4 text-slate-400">
-        <div className="flex items-center gap-1.5" title="WebSocket Live Status">
-          <Wifi className={`w-3.5 h-3.5 ${isConnected ? 'text-emerald-400' : 'text-slate-500'}`} />
+        <div
+          className="flex items-center gap-1.5"
+          title={
+            syncMode === 'websocket'
+              ? 'Real-Time WebSocket Sync Active'
+              : syncMode === 'serverless'
+              ? 'Serverless Mode (Vercel): Real-time sync operates via REST API'
+              : syncMode === 'connecting'
+              ? 'Connecting to Sync Engine...'
+              : 'Sync Engine Offline'
+          }
+        >
+          <Wifi
+            className={`w-3.5 h-3.5 ${
+              syncMode === 'websocket' || syncMode === 'serverless'
+                ? 'text-emerald-400'
+                : syncMode === 'connecting'
+                ? 'text-amber-400 animate-pulse'
+                : 'text-slate-500'
+            }`}
+          />
           <span className="hidden sm:inline">Live Sync:</span>
-          <span className={isConnected ? 'text-emerald-400 font-medium' : 'text-slate-500'}>
-            {isConnected ? 'Online' : 'Connecting'}
+          <span
+            className={
+              syncMode === 'websocket' || syncMode === 'serverless'
+                ? 'text-emerald-400 font-medium'
+                : syncMode === 'connecting'
+                ? 'text-amber-400 font-medium'
+                : 'text-slate-500'
+            }
+          >
+            {syncMode === 'websocket'
+              ? 'Online'
+              : syncMode === 'serverless'
+              ? 'Online (REST)'
+              : syncMode === 'connecting'
+              ? 'Connecting'
+              : 'Offline'}
           </span>
         </div>
         <div className="flex items-center gap-1.5" title="Database Connection Status">

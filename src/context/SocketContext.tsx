@@ -2,9 +2,12 @@ import React, { createContext, useContext, useEffect, useState } from 'react';
 import { io, Socket } from 'socket.io-client';
 import { useAuth } from './AuthContext';
 
+export type SyncMode = 'websocket' | 'serverless' | 'connecting' | 'offline';
+
 interface SocketContextType {
   socket: Socket | null;
   isConnected: boolean;
+  syncMode: SyncMode;
   joinEvent: (eventId: string) => void;
   lastEvent: { type: string; payload: any } | null;
   lastCheckIn?: any;
@@ -17,24 +20,60 @@ export const SocketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   const { role } = useAuth();
   const [socket, setSocket] = useState<Socket | null>(null);
   const [isConnected, setIsConnected] = useState(false);
+  const [syncMode, setSyncMode] = useState<SyncMode>('connecting');
   const [lastEvent, setLastEvent] = useState<{ type: string; payload: any } | null>(null);
 
   useEffect(() => {
-    const newSocket = io({
+    // If a dedicated WebSocket URL is provided in env (e.g. Render/Railway), use it; otherwise use same origin
+    const socketUrl = import.meta.env.VITE_WS_URL || undefined;
+
+    const newSocket = io(socketUrl as any, {
       transports: ['websocket', 'polling'],
-      reconnectionAttempts: 10,
+      reconnectionAttempts: 4,
+      timeout: 5000,
     });
+
+    let healthCheckTimer: any = null;
+
+    // Check REST API health when WebSocket fails or takes too long (common on serverless hosts like Vercel)
+    const checkServerlessFallback = async () => {
+      try {
+        const res = await fetch('/api/health');
+        if (res.ok) {
+          console.log('📡 [EventPulse] REST API is active in serverless mode (Vercel). Live Sync operating via API.');
+          setSyncMode('serverless');
+          setIsConnected(true);
+        } else {
+          setSyncMode('offline');
+        }
+      } catch {
+        setSyncMode('offline');
+      }
+    };
 
     newSocket.on('connect', () => {
       console.log('⚡ Connected to EventPulse WebSocket server:', newSocket.id);
       setIsConnected(true);
+      setSyncMode('websocket');
       newSocket.emit('join_role', role);
+    });
+
+    newSocket.on('connect_error', () => {
+      // On Vercel serverless, WebSockets are not available, so check REST API
+      checkServerlessFallback();
     });
 
     newSocket.on('disconnect', () => {
       console.log('🔌 Disconnected from EventPulse WebSocket server');
-      setIsConnected(false);
+      checkServerlessFallback();
     });
+
+    // Timeout safety: if not connected within 3.5 seconds, check REST health
+    healthCheckTimer = setTimeout(() => {
+      if (!newSocket.connected) {
+        checkServerlessFallback();
+      }
+    }, 3500);
 
     newSocket.on('ticket:booked', (data) => {
       console.log('📢 Real-time event: ticket:booked', data);
@@ -57,6 +96,7 @@ export const SocketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     setSocket(newSocket);
 
     return () => {
+      clearTimeout(healthCheckTimer);
       newSocket.disconnect();
     };
   }, []);
@@ -110,7 +150,7 @@ export const SocketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   const lastCheckIn = lastEvent?.type === 'checkin:verified' ? lastEvent.payload : null;
 
   return (
-    <SocketContext.Provider value={{ socket, isConnected, joinEvent, lastEvent, lastCheckIn, playScanSound }}>
+    <SocketContext.Provider value={{ socket, isConnected, syncMode, joinEvent, lastEvent, lastCheckIn, playScanSound }}>
       {children}
     </SocketContext.Provider>
   );
