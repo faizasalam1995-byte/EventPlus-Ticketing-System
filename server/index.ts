@@ -6,7 +6,7 @@ import dotenv from 'dotenv';
 import path from 'path';
 import { fileURLToPath } from 'url';
 
-import { connectDB, isDbConnected, isUsingFallback } from './config/db';
+import { connectDB, isDbConnected, isUsingFallback, getDbError } from './config/db';
 import { initDataStore } from './services/dataService';
 import { initSocket } from './services/socket';
 
@@ -98,10 +98,14 @@ app.use('/api/ai', aiRoutes);
 
 // Health check endpoint
 app.get('/api/health', (req, res) => {
+  const connected = isDbConnected();
   res.json({
     status: 'online',
     system: 'EventPulse - Event Ticketing & Check-In System',
-    database: isDbConnected() ? 'MongoDB Atlas Connected' : 'EventPulse In-Memory & Resilient Store',
+    database: connected ? 'MongoDB Atlas Connected' : 'EventPulse In-Memory & Resilient Store',
+    dbConnected: connected,
+    dbError: connected ? null : getDbError(),
+    hasMongoUri: Boolean(process.env.MONGODB_URI),
     fallbackMode: isUsingFallback(),
     timestamp: new Date().toISOString(),
   });
