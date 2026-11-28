@@ -7,6 +7,7 @@ interface SocketContextType {
   isConnected: boolean;
   joinEvent: (eventId: string) => void;
   lastEvent: { type: string; payload: any } | null;
+  lastCheckIn?: any;
   playScanSound: (status: 'verified' | 'already_checked_in' | 'invalid') => void;
 }
 
@@ -106,8 +107,10 @@ export const SocketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     }
   };
 
+  const lastCheckIn = lastEvent?.type === 'checkin:verified' ? lastEvent.payload : null;
+
   return (
-    <SocketContext.Provider value={{ socket, isConnected, joinEvent, lastEvent, playScanSound }}>
+    <SocketContext.Provider value={{ socket, isConnected, joinEvent, lastEvent, lastCheckIn, playScanSound }}>
       {children}
     </SocketContext.Provider>
   );

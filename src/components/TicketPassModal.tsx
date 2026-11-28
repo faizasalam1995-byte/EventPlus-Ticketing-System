@@ -154,7 +154,7 @@ export const TicketPassModal: React.FC<TicketPassModalProps> = ({ ticket, onClos
             {ticket.isCheckedIn && (
               <div className="p-2.5 bg-amber-500/10 border border-amber-500/20 rounded-xl text-left text-[11px] text-amber-300">
                 <span className="font-semibold">Check-In Timestamp:</span>{' '}
-                {new Date(ticket.checkInTime || ticket.updatedAt).toLocaleString()} (Verified by {ticket.checkedInBy || 'Gate Staff'})
+                {new Date(ticket.checkInTime || ticket.createdAt || Date.now()).toLocaleString()} (Verified by {ticket.checkedInBy || 'Gate Staff'})
               </div>
             )}
           </div>

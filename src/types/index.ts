@@ -90,6 +90,7 @@ export interface Ticket {
   qrCodeDataUrl: string;
   seatNumber?: string;
   createdAt: string;
+  updatedAt?: string;
 }
 
 export interface CheckInLog {

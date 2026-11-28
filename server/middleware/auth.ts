@@ -3,11 +3,13 @@ import jwt from 'jsonwebtoken';
 
 const JWT_SECRET = process.env.JWT_SECRET || 'foodflow_super_secret_jwt_key_2026_secure';
 
+export type UserRole = 'attendee' | 'organizer' | 'admin' | 'customer' | 'kitchen' | 'manager';
+
 export interface AuthRequest extends Request {
   user?: {
     id: string;
     email: string;
-    role: 'customer' | 'kitchen' | 'manager' | 'admin';
+    role: UserRole;
     name: string;
   };
 }
@@ -48,7 +50,7 @@ export const optionalAuth = (req: AuthRequest, res: Response, next: NextFunction
 };
 
 // Role-based authorization middleware
-export const requireRole = (allowedRoles: Array<'customer' | 'kitchen' | 'manager' | 'admin'>) => {
+export const requireRole = (allowedRoles: Array<UserRole>) => {
   return (req: AuthRequest, res: Response, next: NextFunction): void => {
     if (!req.user) {
       res.status(401).json({ success: false, message: 'Authentication required.' });

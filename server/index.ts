@@ -39,6 +39,56 @@ app.use(
 );
 app.use(express.json());
 
+// Singleton initialization promise for database & store
+let initPromise: Promise<void> | null = null;
+
+export const ensureInitialized = async (): Promise<void> => {
+  if (!initPromise) {
+    initPromise = (async () => {
+      console.log('🚀 Initializing EventPulse DB & Data Store...');
+      await connectDB();
+      await initDataStore();
+    })().catch((err) => {
+      initPromise = null;
+      throw err;
+    });
+  }
+  return initPromise;
+};
+
+// Route resilience: normalize if /api prefix is stripped by serverless rewrites
+app.use((req, res, next) => {
+  if (!req.url.startsWith('/api') && !req.url.startsWith('/socket.io')) {
+    const segment = req.url.split('/')[1]?.split('?')[0];
+    if (['auth', 'events', 'tickets', 'checkin', 'ai', 'health'].includes(segment)) {
+      req.url = '/api' + req.url;
+    }
+  }
+  next();
+});
+
+// Ensure database/store is initialized before processing API requests
+app.use(async (req, res, next) => {
+  if (req.path.startsWith('/api') || req.url.startsWith('/api')) {
+    try {
+      await ensureInitialized();
+    } catch (err: any) {
+      console.error('❌ Failed to initialize database store:', err);
+      return res.status(500).json({ error: 'Database initialization failed', details: err.message });
+    }
+  }
+  next();
+});
+
+// API Root endpoint
+app.get('/api', (req, res) => {
+  res.json({
+    status: 'online',
+    system: 'EventPulse API',
+    endpoints: ['/api/health', '/api/auth', '/api/events', '/api/tickets', '/api/checkin', '/api/ai'],
+  });
+});
+
 // API Routes
 app.use('/api/auth', authRoutes);
 app.use('/api/events', eventRoutes);
@@ -85,10 +135,9 @@ app.get('*', (req, res, next) => {
 
 const PORT = process.env.PORT || 5000;
 
-const startServer = async () => {
+export const startServer = async () => {
   console.log('🚀 Initializing EventPulse Backend Server...');
-  await connectDB();
-  await initDataStore();
+  await ensureInitialized();
 
   server.listen(PORT, () => {
     console.log(`\n======================================================`);
@@ -100,6 +149,12 @@ const startServer = async () => {
   });
 };
 
-startServer().catch((err) => {
-  console.error('Failed to start server:', err);
-});
+// Start listening if running as standalone server (not on Vercel serverless)
+if (process.env.NODE_ENV !== 'test' && !process.env.VERCEL) {
+  startServer().catch((err) => {
+    console.error('Failed to start server:', err);
+  });
+}
+
+export default app;
+export { app, server };
